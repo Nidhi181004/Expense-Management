@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Expense Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="h3 mb-4">
+            <i class="fas fa-tachometer-alt me-2"></i>
+        </h1>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h4 class="text-primary">{{ stats.total_expenses }}</h4>
+                <small class="text-muted">Total Expenses</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h4 class="text-warning">{{ stats.pending_expenses }}</h4>
+                <small class="text-muted">Pending</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h4 class="text-success">{{ stats.approved_expenses }}</h4>
+                <small class="text-muted">Approved</small>
+            </div>
+        </div>
+    </div>
+    
+    {% if current_user.role.value in ['manager', 'admin'] %}
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title">Awaiting Approval</h5>
+                        <h2 class="mb-0">{{ stats.pending_approvals }}</h2>
+                    </div>
+                    <i class="fas fa-user-check fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Recent Expenses
+                    {% if current_user.role.value == 'admin' %}
+                        <small class="text-muted">(All Company)</small>
+                    {% elif current_user.role.value == 'manager' %}
+                        <small class="text-muted">(Your Team)</small>
+                    {% else %}
+                        <small class="text-muted">(Your Expenses)</small>
+                    {% endif %}
+                </h5>
+                <a href="{{ url_for('expenses') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if expenses %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Amount</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for expense in expenses %}
+                            <tr>
+                                <td>
+                                    <strong>{{ expense.title }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ expense.category.name }}</small>
+                                </td>
+                                <td>
+                                    {{ expense.currency }} {{ "%.2f"|format(expense.amount) }}
+                                    {% if expense.currency != current_user.company.currency %}
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ current_user.company.currency }} {{ "%.2f"|format(expense.amount_in_company_currency) }}
+                                    </small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ expense.expense_date.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    {% if expense.status.value == 'approved' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% elif expense.status.value == 'rejected' %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                    {% elif expense.status.value == 'pending_approval' %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ expense.status.value.title() }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewExpense({{ expense.id }})">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-receipt fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No expenses yet. <a href="{{ url_for('new_expense') }}">Create your first expense</a>.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    {% if current_user.role.value in ['manager', 'admin'] %}
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-check me-2"></i>Pending Approvals
+                </h5>
+                <a href="{{ url_for('approvals') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if pending_approvals %}
+                {% for approval in pending_approvals %}
+                <div class="d-flex justify-content-between align-items-center mb-3 p-2 border rounded">
+                    <div>
+                        <strong>{{ approval.expense.title }}</strong>
+                        <br>
+                        <small class="text-muted">
+                            {{ approval.expense.employee.full_name }} - 
+                            {{ current_user.company.currency }} {{ "%.2f"|format(approval.expense.amount_in_company_currency) }}
+                        </small>
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-success me-1" onclick="approveExpense({{ approval.id }})">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="rejectExpense({{ approval.id }})">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-check-circle fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No pending approvals.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt me-2"></i>Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <a href="{{ url_for('new_expense') }}" class="btn btn-primary w-100">
+                            <i class="fas fa-plus me-2"></i>New Expense
+                        </a>
+                    </div>
+                    {% if current_user.role.value in ['manager', 'admin'] %}
+                    <div class="col-md-3">
+                        <a href="{{ url_for('approvals') }}" class="btn btn-warning w-100">
+                            <i class="fas fa-check-circle me-2"></i>Review Approvals
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if current_user.role.value == 'admin' %}
+                    <div class="col-md-3">
+                        <a href="{{ url_for('new_user') }}" class="btn btn-info w-100">
+                            <i class="fas fa-user-plus me-2"></i>Add User
+                        </a>
+                    </div>
+                    {% endif %}
+                    <div class="col-md-3">
+                        <a href="{{ url_for('expenses') }}" class="btn btn-secondary w-100">
+                            <i class="fas fa-list me-2"></i>View All Expenses
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="expenseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Expense Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="expenseModalBody">
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+function viewExpense(expenseId) {
+    $.get(`/api/expenses/${expenseId}`, function(data) {
+        const modalBody = $('#expenseModalBody');
+        modalBody.html(`
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-primary mb-3"><i class="fas fa-info-circle me-2"></i>Basic Information</h6>
+                    <div class="expense-details-container">
+                        <div class="mb-3">
+                            <span class="expense-details-label">Title:</span>
+                            <div class="expense-details-value">${data.title}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Description:</span>
+                            <div class="expense-details-value">${data.description || 'N/A'}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Amount:</span>
+                            <div class="expense-details-value">${data.currency} ${data.amount}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Company Currency:</span>
+                            <div class="expense-details-value">{{ current_user.company.currency }} ${data.amount_in_company_currency}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Date:</span>
+                            <div class="expense-details-value">${data.expense_date}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Category:</span>
+                            <div class="expense-details-value">${data.category}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Employee:</span>
+                            <div class="expense-details-value">${data.employee}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Status:</span>
+                            <div class="expense-details-value">
+                                <span class="badge bg-${getStatusColor(data.status)} fs-6 px-3 py-2">${data.status}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-primary mb-3"><i class="fas fa-check-circle me-2"></i>Approval Workflow</h6>
+                    ${data.approvals.length > 0 ? data.approvals.map((approval, index) => `
+                        <div class="mb-3 p-3 border rounded bg-dark">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="expense-details-label">Step ${index + 1}: ${approval.approver}</span>
+                                <span class="badge bg-${getStatusColor(approval.status)} fs-6">${approval.status}</span>
+                            </div>
+                            ${approval.comments ? `<div class="expense-details-value small">${approval.comments}</div>` : ''}
+                        </div>
+                    `).join('') : '<div class="text-center py-4"><i class="fas fa-info-circle text-muted me-2"></i><span class="text-muted">No approvals required</span></div>'}
+                </div>
+            </div>
+            ${data.receipt_url ? `
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6 class="text-primary mb-3"><i class="fas fa-receipt me-2"></i>Receipt</h6>
+                        <div class="text-center">
+                            <img src="${data.receipt_url}" class="img-fluid rounded shadow" alt="Receipt" style="max-height: 400px; border: 2px solid #444;">
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+        `);
+        $('#expenseModal').modal('show');
+    });
+}
+
+function getStatusColor(status) {
+    switch(status) {
+        case 'approved': return 'success';
+        case 'rejected': return 'danger';
+        case 'pending': return 'warning';
+        default: return 'secondary';
+    }
+}
+
+function approveExpense(approvalId) {
+    const comments = prompt('Add comments (optional):');
+    $.post(`/approvals/${approvalId}/approve`, {
+        comments: comments || ''
+    }, function() {
+        location.reload();
+    });
+}
+
+function rejectExpense(approvalId) {
+    const comments = prompt('Add rejection reason:');
+    if (comments) {
+        $.post(`/approvals/${approvalId}/reject`, {
+            comments: comments
+        }, function() {
+            location.reload();
+        });
+    }
+}
+</script>
+{% endblock %}
+{% endblock %}
