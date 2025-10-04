@@ -193,13 +193,9 @@ For receipt scanning functionality:
 - **ApprovalRule**: Configurable approval rules
 - **ExpenseCategory**: Expense categorization
 
-## Security Features
+## 📚 Documentation
 
-- **Password hashing**: Secure password storage using bcrypt
-- **Session management**: Flask-Login for secure sessions
-- **Role-based access**: Proper authorization checks
-- **Input validation**: Form validation and sanitization
-- **File upload security**: Secure file handling for receipts
+This README contains all the essential information to get started with the Expense Management System. For detailed technical documentation, architecture diagrams, and project reports, please refer to the local documentation files available in the development environment.
 
 ## Development
 

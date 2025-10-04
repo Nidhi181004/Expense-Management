@@ -108,3 +108,6 @@ static/js/compiled/
 
 # Cache
 .cache/
+
+# Local documentation backup
+docs_backup/
