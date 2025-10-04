@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}New Expense - Expense Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="h3 mb-4">
+            <i class="fas fa-plus me-2"></i>Submit New Expense
+        </h1>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Expense Details</h5>
+            </div>
+            <div class="card-body">
+                <form id="expenseForm" method="POST" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="title" class="form-label">Title *</label>
+                            <input type="text" class="form-control" id="title" name="title" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="category_id" class="form-label">Category *</label>
+                            <select class="form-select" id="category_id" name="category_id" required>
+                                <option value="">Select Category</option>
+                                {% for category in categories %}
+                                <option value="{{ category.id }}">{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="amount" class="form-label">Amount *</label>
+                            <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="currency" class="form-label">Currency *</label>
+                            <select class="form-select" id="currency" name="currency" required>
+                                <option value="{{ current_user.company.currency }}" selected>
+                                    {{ current_user.company.currency }} (Company Default)
+                                </option>
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                                <option value="GBP">GBP</option>
+                                <option value="INR">INR</option>
+                                <option value="JPY">JPY</option>
+                                <option value="CAD">CAD</option>
+                                <option value="AUD">AUD</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="expense_date" class="form-label">Expense Date *</label>
+                            <input type="date" class="form-control" id="expense_date" name="expense_date" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="receipt" class="form-label">Receipt (Optional)</label>
+                            <input type="file" class="form-control" id="receipt" name="receipt" accept="image/*,.pdf">
+                        </div>
+                    </div>
+                    
+                    <!-- Currency Conversion Display -->
+                    <div id="conversionInfo" class="alert alert-info" style="display: none;">
+                        <i class="fas fa-exchange-alt me-2"></i>
+                        <span id="conversionText"></span>
+                    </div>
+                    
+                    <!-- OCR Section -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-camera me-2"></i>Quick Receipt Scan (OCR)
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <input type="file" class="form-control" id="ocrReceipt" accept="image/*" capture="camera">
+                                    <small class="text-muted">Upload or take a photo of your receipt</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <button type="button" class="btn btn-outline-primary" id="processOCR">
+                                        <i class="fas fa-magic me-2"></i>Extract Details
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="ocrResults" class="mt-3" style="display: none;">
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    Receipt processed! Details have been filled automatically.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('expenses') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane me-2"></i>Submit Expense
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Set today's date as default
+    $('#expense_date').val(new Date().toISOString().split('T')[0]);
+    
+    // Currency conversion
+    $('#amount, #currency').on('change', function() {
+        updateCurrencyConversion();
+    });
+    
+    function updateCurrencyConversion() {
+        const amount = parseFloat($('#amount').val());
+        const currency = $('#currency').val();
+        const companyCurrency = '{{ current_user.company.currency }}';
+        
+        if (amount && currency && currency !== companyCurrency) {
+            $.get(`/api/exchange-rate/${currency}/${companyCurrency}`, function(data) {
+                const convertedAmount = (amount * data.rate).toFixed(2);
+                $('#conversionInfo').show();
+                $('#conversionText').text(
+                    `${currency} ${amount.toFixed(2)} = ${companyCurrency} ${convertedAmount} (Rate: ${data.rate.toFixed(4)})`
+                );
+            });
+        } else {
+            $('#conversionInfo').hide();
+        }
+    }
+    
+    // OCR Processing
+    $('#processOCR').on('click', function() {
+        const file = $('#ocrReceipt')[0].files[0];
+        if (!file) {
+            alert('Please select a receipt image first.');
+            return;
+        }
+        
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Processing...');
+        
+        const formData = new FormData();
+        formData.append('receipt', file);
+        
+        $.ajax({
+            url: '/api/ocr/process',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(data) {
+                // Fill form with extracted data
+                $('#title').val(data.title);
+                $('#description').val(data.description);
+                $('#amount').val(data.amount);
+                $('#currency').val(data.currency);
+                $('#expense_date').val(data.expense_date);
+                
+                // Try to match category
+                const categorySelect = $('#category_id');
+                categorySelect.find('option').each(function() {
+                    if ($(this).text().toLowerCase().includes(data.category.toLowerCase())) {
+                        categorySelect.val($(this).val());
+                        return false;
+                    }
+                });
+                
+                $('#ocrResults').show();
+                updateCurrencyConversion();
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                alert(response.error || 'OCR processing failed');
+            },
+            complete: function() {
+                $btn.prop('disabled', false).html('<i class="fas fa-magic me-2"></i>Extract Details');
+            }
+        });
+    });
+    
+    // Form submission
+    $('#expenseForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            title: $('#title').val(),
+            description: $('#description').val(),
+            amount: $('#amount').val(),
+            currency: $('#currency').val(),
+            expense_date: $('#expense_date').val(),
+            category_id: $('#category_id').val()
+        };
+        
+        $.ajax({
+            url: '{{ url_for("new_expense") }}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                alert('Expense submitted successfully!');
+                window.location.href = '{{ url_for("expenses") }}';
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                alert(response.error || 'Failed to submit expense');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

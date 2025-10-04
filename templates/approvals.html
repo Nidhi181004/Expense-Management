@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block title %}Approvals - Expense Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="h3 mb-4">
+            <i class="fas fa-check-circle me-2"></i>Pending Approvals
+        </h1>
+    </div>
+{% if approvals.items %}
+<div class="row">
+    {% for approval in approvals.items %}
+    <div class="col-lg-6 mb-4">
+        <div class="card approval-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">{{ approval.expense.title }}</h6>
+                <span class="badge bg-warning">Pending</span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Employee:</strong> {{ approval.expense.employee.full_name }}</p>
+                        <p class="mb-1"><strong>Amount:</strong> 
+                            {{ current_user.company.currency }} {{ "%.2f"|format(approval.expense.amount_in_company_currency) }}
+                            {% if approval.expense.currency != current_user.company.currency %}
+                            <br><small class="text-muted">Original: {{ approval.expense.currency }} {{ "%.2f"|format(approval.expense.amount) }}</small>
+                            {% endif %}
+                        </p>
+                        <p class="mb-1"><strong>Date:</strong> {{ approval.expense.expense_date.strftime('%Y-%m-%d') }}</p>
+                        <p class="mb-1"><strong>Category:</strong> {{ approval.expense.category.name }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        {% if approval.expense.description %}
+                        <p class="mb-2"><strong>Description:</strong></p>
+                        <p class="text-muted small">{{ approval.expense.description }}</p>
+                        {% endif %}
+                        <p class="mb-1"><strong>Submitted:</strong> {{ approval.expense.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <textarea class="form-control form-control-sm" id="comments_{{ approval.id }}" 
+                                    placeholder="Add comments (optional)" rows="2"></textarea>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-success w-100" onclick="approveExpense({{ approval.id }})">
+                                <i class="fas fa-check me-2"></i>Approve
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-danger w-100" onclick="rejectExpense({{ approval.id }})">
+                                <i class="fas fa-times me-2"></i>Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-2">
+                    <button class="btn btn-outline-primary btn-sm w-100" onclick="viewExpenseDetails({{ approval.expense.id }})">
+                        <i class="fas fa-eye me-2"></i>View Full Details
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if approvals.pages > 1 %}
+<nav aria-label="Approvals pagination">
+    <ul class="pagination justify-content-center">
+        {% if approvals.has_prev %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('approvals', page=approvals.prev_num) }}">Previous</a>
+        </li>
+        {% endif %}
+        
+        {% for page_num in approvals.iter_pages() %}
+            {% if page_num %}
+                {% if page_num != approvals.page %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('approvals', page=page_num) }}">{{ page_num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item active">
+                    <span class="page-link">{{ page_num }}</span>
+                </li>
+                {% endif %}
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">...</span>
+            </li>
+            {% endif %}
+        {% endfor %}
+        
+        {% if approvals.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('approvals', page=approvals.next_num) }}">Next</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-check-circle fa-4x text-muted mb-3"></i>
+    <h4 class="text-muted">No pending approvals</h4>
+    <p class="text-muted">All caught up! There are no expenses waiting for your approval.</p>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+        <i class="fas fa-tachometer-alt me-2"></i>Back to Dashboard
+    </a>
+</div>
+{% endif %}
+
+<div class="modal fade" id="expenseDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Expense Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="expenseDetailsModalBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if approvals.items %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h6 class="mb-0">
+            <i class="fas fa-tasks me-2"></i>Bulk Actions
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <button class="btn btn-outline-success w-100" onclick="selectAll()">
+                    <i class="fas fa-check-square me-2"></i>Select All
+                </button>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-success w-100" onclick="bulkApprove()" disabled id="bulkApproveBtn">
+                    <i class="fas fa-check me-2"></i>Approve Selected
+                </button>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-danger w-100" onclick="bulkReject()" disabled id="bulkRejectBtn">
+                    <i class="fas fa-times me-2"></i>Reject Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% block extra_js %}
+<script>
+function approveExpense(approvalId) {
+    const comments = $(`#comments_${approvalId}`).val();
+    
+    $.ajax({
+        url: `/approvals/${approvalId}/approve`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ comments: comments }),
+        success: function(response) {
+            alert('Expense approved successfully!');
+            location.reload();
+        },
+        error: function(xhr) {
+            const response = xhr.responseJSON;
+            alert(response.error || 'Failed to approve expense');
+        }
+    });
+}
+
+function rejectExpense(approvalId) {
+    const comments = $(`#comments_${approvalId}`).val();
+    
+    if (!comments.trim()) {
+        alert('Please provide a reason for rejection.');
+        $(`#comments_${approvalId}`).focus();
+        return;
+    }
+    
+    if (confirm('Are you sure you want to reject this expense?')) {
+        $.ajax({
+            url: `/approvals/${approvalId}/reject`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ comments: comments }),
+            success: function(response) {
+                alert('Expense rejected successfully!');
+                location.reload();
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                alert(response.error || 'Failed to reject expense');
+            }
+        });
+    }
+}
+
+function viewExpenseDetails(expenseId) {
+    console.log('Attempting to load expense details for ID:', expenseId);
+    
+    // First test if API is working
+    $.get('/api/test', function(testData) {
+        console.log('API test successful:', testData);
+    }).fail(function(xhr) {
+        console.error('API test failed:', xhr);
+    });
+    
+    $.get(`/api/expenses/${expenseId}`, function(data) {
+        console.log('Expense data loaded successfully:', data);
+        const modalBody = $('#expenseDetailsModalBody');
+        modalBody.html(`
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-primary mb-3"><i class="fas fa-info-circle me-2"></i>Basic Information</h6>
+                    <div class="expense-details-container">
+                        <div class="mb-3">
+                            <span class="expense-details-label">Title:</span>
+                            <div class="expense-details-value">${data.title}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Description:</span>
+                            <div class="expense-details-value">${data.description || 'N/A'}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Amount:</span>
+                            <div class="expense-details-value">${data.currency} ${data.amount}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Company Currency:</span>
+                            <div class="expense-details-value">{{ current_user.company.currency }} ${data.amount_in_company_currency}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Date:</span>
+                            <div class="expense-details-value">${data.expense_date}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Category:</span>
+                            <div class="expense-details-value">${data.category}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Employee:</span>
+                            <div class="expense-details-value">${data.employee}</div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="expense-details-label">Status:</span>
+                            <div class="expense-details-value">
+                                <span class="badge bg-${getStatusColor(data.status)} fs-6 px-3 py-2">${data.status}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-primary mb-3"><i class="fas fa-check-circle me-2"></i>Approval Workflow</h6>
+                    ${data.approvals.length > 0 ? data.approvals.map((approval, index) => `
+                        <div class="mb-3 p-3 border rounded bg-dark">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="expense-details-label">Step ${index + 1}: ${approval.approver}</span>
+                                <span class="badge bg-${getStatusColor(approval.status)} fs-6">${approval.status}</span>
+                            </div>
+                            ${approval.comments ? `<div class="expense-details-value small">${approval.comments}</div>` : ''}
+                            ${approval.approved_at ? `<div class="expense-details-value small mt-1">Date: ${new Date(approval.approved_at).toLocaleDateString()}</div>` : ''}
+                        </div>
+                    `).join('') : '<div class="text-center py-4"><i class="fas fa-info-circle text-muted me-2"></i><span class="text-muted">No approval history</span></div>'}
+                </div>
+            </div>
+            ${data.receipt_url ? `
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6 class="text-primary mb-3"><i class="fas fa-receipt me-2"></i>Receipt</h6>
+                        <div class="text-center">
+                            <img src="${data.receipt_url}" class="img-fluid rounded shadow" alt="Receipt" style="max-height: 400px; border: 2px solid #444;">
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+        `);
+        $('#expenseDetailsModal').modal('show');
+    }).fail(function(xhr, status, error) {
+        console.error('Failed to load expense details:', {
+            status: xhr.status,
+            statusText: xhr.statusText,
+            responseText: xhr.responseText,
+            error: error
+        });
+        
+        let errorMessage = 'Failed to load expense details. ';
+        if (xhr.status === 403) {
+            errorMessage += 'You do not have permission to view this expense.';
+        } else if (xhr.status === 404) {
+            errorMessage += 'Expense not found.';
+        } else if (xhr.status === 500) {
+            errorMessage += 'Server error occurred.';
+        } else {
+            errorMessage += 'Please try again.';
+        }
+        
+        alert(errorMessage);
+    });
+}
+
+function getStatusColor(status) {
+    switch(status) {
+        case 'approved': return 'success';
+        case 'rejected': return 'danger';
+        case 'pending': case 'pending_approval': return 'warning';
+        case 'paid': return 'info';
+        default: return 'secondary';
+    }
+}
+
+// Bulk actions (placeholder implementation)
+function selectAll() {
+    // Implementation for selecting all items
+    alert('Bulk selection functionality would be implemented here.');
+}
+
+function bulkApprove() {
+    // Implementation for bulk approve
+    alert('Bulk approve functionality would be implemented here.');
+}
+
+function bulkReject() {
+    // Implementation for bulk reject
+    alert('Bulk reject functionality would be implemented here.');
+}
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Expense Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-user me-2"></i>My Profile</h1>
+                <a href="{{ url_for('edit_profile') }}" class="btn btn-primary">
+                    <i class="fas fa-edit me-2"></i>Edit Profile
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Personal Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="profile-label">First Name</label>
+                                <p class="profile-value">{{ user.first_name }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="profile-label">Last Name</label>
+                                <p class="profile-value">{{ user.last_name }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="profile-label">Email Address</label>
+                                <p class="profile-value">{{ user.email }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="profile-label">Role</label>
+                                <p class="mb-0">
+                                    <span class="badge bg-primary fs-6">{{ user.role.value.title() }}</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="profile-label">Company</label>
+                                <p class="profile-value">{{ user.company.name }}</p>
+                            </div>
+                        </div>
+                        {% if user.manager %}
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="profile-label">Manager</label>
+                                <p class="profile-value">{{ user.manager.full_name }}</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="profile-label">Member Since</label>
+                                <p class="profile-value">{{ user.created_at.strftime('%B %d, %Y') }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="profile-label">Status</label>
+                                <p class="mb-0">
+                                    <span class="badge bg-success fs-6">Active</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>My Statistics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% set my_expenses = user.expenses %}
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <h4 class="stats-number text-primary">{{ my_expenses|length }}</h4>
+                                <small class="stats-label">Total Expenses</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <h4 class="stats-number text-warning">
+                                    {{ my_expenses|selectattr("status.value", "equalto", "pending_approval")|list|length }}
+                                </h4>
+                                <small class="stats-label">Pending</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <h4 class="stats-number text-success">
+                                    {{ my_expenses|selectattr("status.value", "equalto", "approved")|list|length }}
+                                </h4>
+                                <small class="stats-label">Approved</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <h4 class="stats-number text-danger">
+                                    {{ my_expenses|selectattr("status.value", "equalto", "rejected")|list|length }}
+                                </h4>
+                                <small class="stats-label">Rejected</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if user.role.value in ['manager', 'admin'] %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users me-2"></i>Team Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if user.subordinates %}
+                        <p class="profile-label mb-3">Direct Reports:</p>
+                        {% for subordinate in user.subordinates %}
+                        <div class="team-member-card d-flex align-items-center">
+                            <div class="avatar-circle me-3">
+                                {{ subordinate.first_name[0] }}{{ subordinate.last_name[0] }}
+                            </div>
+                            <div>
+                                <div class="profile-value mb-1">{{ subordinate.full_name }}</div>
+                                <small class="stats-label">{{ subordinate.role.value.title() }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="stats-label fst-italic">No direct reports</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
