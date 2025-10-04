@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Registration Test</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 500px; margin: 50px auto; padding: 20px; }
+        input, select { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; }
+        .result { margin-top: 20px; padding: 10px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h2>Simple Registration Test</h2>
+    <form id="registerForm">
+        <input type="text" id="first_name" placeholder="First Name" required>
+        <input type="text" id="last_name" placeholder="Last Name" required>
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <input type="text" id="company_name" placeholder="Company Name" required>
+        <select id="country" required>
+            <option value="">Select Country</option>
+            <option value="United States">United States (USD)</option>
+            <option value="India">India (INR)</option>
+            <option value="United Kingdom">United Kingdom (GBP)</option>
+            <option value="Germany">Germany (EUR)</option>
+        </select>
+        <button type="submit" id="submitBtn">Register</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+    $('#registerForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        const $btn = $('#submitBtn');
+        const $result = $('#result');
+        
+        // Show loading state
+        $btn.prop('disabled', true).text('Processing...');
+        $result.removeClass('success error').text('');
+        
+        const formData = {
+            first_name: $('#first_name').val(),
+            last_name: $('#last_name').val(),
+            email: $('#email').val(),
+            password: $('#password').val(),
+            company_name: $('#company_name').val(),
+            country: $('#country').val()
+        };
+        
+        console.log('Sending registration data:', formData);
+        
+        $.ajax({
+            url: '/register',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            timeout: 10000, // 10 second timeout
+            success: function(response) {
+                console.log('Registration success:', response);
+                $result.addClass('success').text('Registration successful! Redirecting...');
+                setTimeout(function() {
+                    if (response.redirect) {
+                        window.location.href = response.redirect;
+                    }
+                }, 1000);
+            },
+            error: function(xhr, status, error) {
+                console.log('Registration error:', xhr, status, error);
+                let errorMsg = 'Registration failed';
+                
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                } else if (status === 'timeout') {
+                    errorMsg = 'Request timed out - server may be slow';
+                } else if (status === 'error') {
+                    errorMsg = 'Network error - check if server is running';
+                }
+                
+                $result.addClass('error').text(errorMsg);
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Register');
+            }
+        });
+    });
+    </script>
+</body>
+</html>
